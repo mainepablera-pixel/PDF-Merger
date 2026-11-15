@@ -1,0 +1,29 @@
+name: Build PDF
+
+on:
+  push:
+    paths: ["images/**"]
+  workflow_dispatch:
+    inputs:
+      compress:
+        description: "Also make a smaller PDF?"
+        type: choice
+        options: [none, screen, print]
+        default: none
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y ghostscript
+      - run: pip install img2pdf
+      - run: python make_pdf.py "${{ inputs.compress || 'none' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-pdf
+          path: out/*.pdf
+          compression-level: 0
