@@ -1,7 +1,9 @@
-import re, subprocess, sys
+import re, sys
 from pathlib import Path
 import img2pdf
+from PIL import Image, ImageOps
 
+Image.MAX_IMAGE_PIXELS = None
 mode = sys.argv[1] if len(sys.argv) > 1 else "none"  # none | screen | print
 
 def natural(p):
@@ -16,21 +18,26 @@ files = sorted(
 if not files:
     sys.exit("No JPGs found in images/")
 print(f"Found {len(files)} images")
-print("\n".join(str(p) for p in files))
-print("Skipped:", [str(p) for p in Path("images").rglob("*") if p.is_file() and p not in files])
 
 Path("out").mkdir(exist_ok=True)
-full = Path("out/consolidated.pdf")
-with open(full, "wb") as f:
-    img2pdf.convert([str(p) for p in files], outputstream=f, rotation=img2pdf.Rotation.ifvalid)
-print(f"Full-quality PDF: {full.stat().st_size / 1e6:.0f} MB")
 
-if mode in ("screen", "print"):
-    setting = "/ebook" if mode == "screen" else "/printer"
-    small = Path(f"out/consolidated_{mode}.pdf")
-    subprocess.run(
-        ["gs", "-sDEVICE=pdfwrite", f"-dPDFSETTINGS={setting}", "-dNOPAUSE",
-         "-dBATCH", "-dQUIET", f"-sOutputFile={small}", str(full)],
-        check=True,
-    )
-    print(f"Compressed PDF: {small} ({small.stat().st_size / 1e6:.0f} MB)")
+if mode == "none":
+    sources = [str(p) for p in files]
+    out = Path("out/consolidated.pdf")
+else:
+    max_edge, quality = {"screen": (2000, 75), "print": (3000, 85)}[mode]
+    tmp = Path("tmp")
+    tmp.mkdir(exist_ok=True)
+    sources = []
+    for i, p in enumerate(files):
+        with Image.open(p) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            im.thumbnail((max_edge, max_edge), Image.LANCZOS)
+            dest = tmp / f"{i:04d}.jpg"
+            im.save(dest, "JPEG", quality=quality, optimize=True)
+        sources.append(str(dest))
+    out = Path(f"out/consolidated_{mode}.pdf")
+
+with open(out, "wb") as f:
+    img2pdf.convert(sources, outputstream=f, rotation=img2pdf.Rotation.ifvalid)
+print(f"{out}: {out.stat().st_size / 1e6:.0f} MB")
