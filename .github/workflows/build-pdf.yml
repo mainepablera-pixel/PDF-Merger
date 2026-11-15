@@ -3,11 +3,11 @@ name: Build PDF
 on:
   workflow_dispatch:
     inputs:
-      zip_url:
-        description: "Link to your zip (Google Drive or Dropbox, set to 'anyone with link')"
+      Archive:
+        description: "Please provide the shareable link to the ZIP archive (Google Drive or Dropbox, access set to 'Anyone with the link')"
         required: true
-      compress:
-        description: "Also make a smaller PDF?"
+      Compression:
+        description: "Please select the compression level for the additional output file"
         type: choice
         options: [none, screen, print]
         default: none
@@ -24,10 +24,10 @@ jobs:
       - run: pip install img2pdf gdown
       - name: Download and unzip
         env:
-          ZIP_URL: ${{ inputs.zip_url }}
+          ZIP_URL: ${{ inputs.Archive }}
         run: |
           if [[ "$ZIP_URL" == *drive.google.com* ]]; then
-            gdown --fuzzy "$ZIP_URL" -O photos.zip
+            gdown "$ZIP_URL" -O photos.zip
           else
             URL="${ZIP_URL/dl=0/dl=1}"
             curl -L --fail "$URL" -o photos.zip
@@ -36,7 +36,7 @@ jobs:
           mkdir -p images
           unzip -q photos.zip -d images
           rm photos.zip
-      - run: python make_pdf.py "${{ inputs.compress }}"
+      - run: python make_pdf.py "${{ inputs.Compression }}"
       - uses: actions/upload-artifact@v4
         with:
           name: consolidated-pdf
