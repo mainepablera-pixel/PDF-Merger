@@ -1,10 +1,11 @@
 name: Build PDF
 
 on:
-  push:
-    paths: ["images/**"]
   workflow_dispatch:
     inputs:
+      zip_url:
+        description: "Link to your zip (Google Drive or Dropbox, set to 'anyone with link')"
+        required: true
       compress:
         description: "Also make a smaller PDF?"
         type: choice
@@ -20,8 +21,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y ghostscript
-      - run: pip install img2pdf
-      - run: python make_pdf.py "${{ inputs.compress || 'none' }}"
+      - run: pip install img2pdf gdown
+      - name: Download and unzip
+        env:
+          ZIP_URL: ${{ inputs.zip_url }}
+        run: |
+          if [[ "$ZIP_URL" == *drive.google.com* ]]; then
+            gdown --fuzzy "$ZIP_URL" -O photos.zip
+          else
+            URL="${ZIP_URL/dl=0/dl=1}"
+            curl -L --fail "$URL" -o photos.zip
+          fi
+          ls -lh photos.zip
+          mkdir -p images
+          unzip -q photos.zip -d images
+          rm photos.zip
+      - run: python make_pdf.py "${{ inputs.compress }}"
       - uses: actions/upload-artifact@v4
         with:
           name: consolidated-pdf
